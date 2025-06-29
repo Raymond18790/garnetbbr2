@@ -1,0 +1,43 @@
+name: Kernel Build - Garnet BBR2
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v3
+
+      - name: Setup Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y bc cpio flex bison build-essential \
+            gcc clang git libssl-dev lz4 libncurses5-dev libelf-dev \
+            python3 python3-pip rsync zip
+
+      - name: Clone Toolchain (Proton Clang)
+        run: |
+          git clone --depth=1 https://github.com/kdrag0n/proton-clang clang
+
+      - name: Build Kernel
+        run: |
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export CLANG_PATH=$PWD/clang
+          export PATH=$CLANG_PATH/bin:$PATH
+
+          make O=out ARCH=arm64 garnet_defconfig
+          make -j$(nproc) O=out ARCH=arm64 \
+            CC=clang \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
+            CLANG_TRIPLE=aarch64-linux-gnu-
+
+      - name: Upload zImage or boot.img
+        uses: actions/upload-artifact@v3
+        with:
+          name: compiled-kernel
+          path: out/arch/arm64/boot/
